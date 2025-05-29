@@ -23,24 +23,27 @@ Create a beautiful Word document from your Zotero library, including all folders
    cd Zotero2Word
    ```
 
-2. **Install Python dependencies:**
+2. **(Recommended) Use pipx to install pipenv for isolated Python environments:**
 
-   ```bash
-   pip install pyzotero python-docx tqdm beautifulsoup4 lxml requests imgkit
+   ```fish
+   python3 -m pip install --user pipx
+   python3 -m pipx ensurepath
+   pipx install pipenv
+   pipenv install --dev
+   pipenv shell
    ```
 
-3. **Install system dependencies (choose your OS):**
+3. **Install Python dependencies:**
+
+   ```bash
+   pip install pyzotero python-docx tqdm beautifulsoup4 lxml requests imgkit html2image
+   ```
+
+4. **Install system dependencies (choose your OS):**
 
    **On Windows:**
    - Download and install `wkhtmltopdf` (includes `wkhtmltoimage`) from [wkhtmltopdf.org](https://wkhtmltopdf.org/downloads.html)
    - Add the installation folder (usually `C:\Program Files\wkhtmltopdf\bin`) to your PATH environment variable.
-   - (Optional, recommended) Use pipenv for isolated Python environments:
-
-     ```fish
-     pip install pipenv
-     pipenv install --dev
-     pipenv shell
-     ```
 
    **Other OSes (Linux/macOS):**
    - On Ubuntu/Debian:
@@ -56,18 +59,11 @@ Create a beautiful Word document from your Zotero library, including all folders
      ```
 
    - Or download from [wkhtmltopdf.org](https://wkhtmltopdf.org/)
-   - (Optional, recommended) Use pipenv for isolated Python environments:
 
-     ```fish
-     pip install pipenv
-     pipenv install --dev
-     pipenv shell
-     ```
-
-4. **Edit `config.py` file:**
+5. **Edit `config.py` file:**
    - Propably not needed
 
-5. **Enable Zotero Local Server API:**
+6. **Enable Zotero Local Server API:**
    - Open Zotero.
    - Go to `Edit` > `Preferences` > `Advanced` > `General` > `Advanced Configuration`
    - Tick `Allow other applications on this computer to communicate with Zotero`
@@ -81,10 +77,12 @@ Run the script:
 python Zotero2Word.py
 ```
 
-## TODO:
+The output Word document will be saved to the path specified in your `config.py`.
+
+## TODO
+
 - Fix attachment-path showing as None
   - Thats why attachments arent shown in the doc
-The output Word document will be saved to the path specified in your `config.py`.
 
 ## License
 
