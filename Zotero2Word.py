@@ -200,7 +200,7 @@ def main():
                     doc.add_paragraph()
 
                 # --- Insert HTML snapshots as images ---
-                if hasattr(item_obj, 'snapshots') and item_obj.snapshots:
+                if CONFIG.get("ENABLE_WEBPAGES", True) and hasattr(item_obj, 'snapshots') and item_obj.snapshots:
                     p_snapshots_header = doc.add_paragraph()
                     run_snapshots_header = p_snapshots_header.add_run("Snapshots:")
                     run_snapshots_header.bold = True
@@ -211,7 +211,7 @@ def main():
                 # --- Insert all image attachments (png, jpg, jpeg, gif, bmp, tiff) ---
                 image_exts = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff']
                 attachments = []
-                if hasattr(item_obj, 'meta') and 'attachments' in item_obj.meta:
+                if CONFIG.get("ENABLE_IMAGES", True) and hasattr(item_obj, 'meta') and 'attachments' in item_obj.meta:
                     attachments.extend(item_obj.meta['attachments'])
                 for att in attachments:
                     att_path = get_attachment_path(att, CONFIG)

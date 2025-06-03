@@ -8,4 +8,6 @@ CONFIG = {
     "EMBED_METADATA":  True,
     "MAX_IMG_WIDTH":   6.0,   # inch
     "VERBOSE_LOGGING": False,  # Enable/disable verbose debug logs
+    "ENABLE_IMAGES":   False,  # Set to False to disable adding/parsing/downloading images
+    "ENABLE_WEBPAGES": False,  # Set to False to disable adding/parsing HTML snapshots/webpages
 }
