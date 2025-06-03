@@ -67,36 +67,61 @@ def connect_local(CONFIG) -> zotero.Zotero:
         print(f"❌ Could not connect to local Zotero: {e}")
         sys.exit(1)
 
-def get_attachment_path(attachment_meta: dict, CONFIG) -> Optional[Path]:
+def is_image_file(filepath):
+    """Check if a file is an image by extension."""
+    image_exts = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"]
+    if not filepath:
+        return False
+    return str(filepath).lower().endswith(tuple(image_exts))
+
+def get_attachment_path(attachment_meta: dict, CONFIG) -> Optional[str]:
+    """
+    Resolves the local file path for a Zotero attachment (image, PDF, HTML, etc).
+    Returns the file path as a string, or None if not found.
+    """
     data = safe_get(attachment_meta, "data", {})
     link_mode = safe_get(data, "linkMode")
     key = safe_get(data, "key")
     filename = safe_get(data, "filename")
-    storage_dir = safe_get(CONFIG, "STORAGE_DIR")
+    storage_dir = str(safe_get(CONFIG, "STORAGE_DIR"))
+    # Error checking for storage_dir
+    if not storage_dir or not os.path.isdir(storage_dir):
+        warnings.warn(f"[ERROR] STORAGE_DIR is not set or does not exist: {storage_dir}")
+        return None
     # For imported files (local attachments)
-    if link_mode == "imported_file" and key and storage_dir:
-        folder = storage_dir / key
+    if (link_mode == 1 or link_mode == "imported_file" or link_mode == "imported_url") and key and storage_dir:
+        folder = os.path.join(storage_dir, key)
         if filename:
-            path = folder / filename
-            if path.exists():
+            path = os.path.join(folder, filename)
+            if os.path.exists(path):
                 return path
-        # If filename is missing, use the first file in the folder
-        if folder.exists() and folder.is_dir():
-            files = list(folder.iterdir())
-            if files:
-                return files[0]
             else:
-                warnings.warn(f"No files found in expected attachment folder: {folder}")
+                warnings.warn(f"[ERROR] Attachment file does not exist: {path}")
+        # If filename is missing, use the first file in the folder
+        if os.path.isdir(folder):
+            files = os.listdir(folder)
+            if files:
+                return os.path.join(folder, files[0])
+            else:
+                warnings.warn(f"[ERROR] No files found in expected attachment folder: {folder}")
         else:
-            warnings.warn(f"Expected attachment folder does not exist: {folder}")
+            warnings.warn(f"[ERROR] Expected attachment folder does not exist: {folder}")
     # For linked files (rare)
     raw_path = safe_get(data, "path")
     if raw_path:
         if raw_path.startswith("storage:"):
-            return storage_dir / raw_path.replace("storage:", "", 1)
-        elif Path(raw_path).is_absolute():
-            return Path(raw_path)
-        warnings.warn(f"Could not resolve attachment path: {raw_path}")
+            path = os.path.join(storage_dir, raw_path.replace("storage:", "", 1))
+            if os.path.exists(path):
+                return path
+            else:
+                warnings.warn(f"[ERROR] Linked storage path does not exist: {path}")
+        elif os.path.isabs(raw_path):
+            if os.path.exists(raw_path):
+                return raw_path
+            else:
+                warnings.warn(f"[ERROR] Absolute linked path does not exist: {raw_path}")
+        else:
+            warnings.warn(f"[ERROR] Could not resolve attachment path: {raw_path}")
     return None
 
 def populate_item_children(z_item: ZItem, zot_instance: zotero.Zotero, CONFIG):
@@ -117,10 +142,10 @@ def populate_item_children(z_item: ZItem, zot_instance: zotero.Zotero, CONFIG):
                     z_item.child_notes.append(note_content_html)
             elif safe_get(child_data, "itemType", "") == "attachment":
                 path = get_attachment_path(child_meta if isinstance(child_meta, dict) else {}, CONFIG)
-                if path and path.exists() and path.suffix.lower() == ".html":
-                    z_item.snapshots.append(path)
+                if path and os.path.exists(path) and path.lower().endswith(".html"):
+                    z_item.snapshots.append(Path(path))
                 # --- Add image attachments to meta['attachments'] ---
-                if path and path.exists() and path.suffix.lower() in image_exts:
+                if path and os.path.exists(path) and is_image_file(path):
                     z_item.meta['attachments'].append(child_meta)
                     if verbose:
                         print(f"[Zotero2Word] Found image attachment: {path}", file=sys.stderr)

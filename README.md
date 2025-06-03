@@ -4,17 +4,26 @@
 [![License: AGPL v3.0](https://img.shields.io/badge/License-AGPL%20v3.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](https://wkhtmltopdf.org/)
 
-Create a beautiful Word document from your Zotero library, including all folders, subfolders, notes, images, and HTML snapshots.
+A tool to export Zotero items and notes to Microsoft Word (.docx) with rich formatting, metadata, and embedded images.
 
 ## Features
 
-- Exports your entire Zotero library to a well-formatted Word (.docx) document
-- Preserves folder and subfolder structure as Word headers
-- Includes all notes, formatted for readability
-- Embeds images and HTML snapshots from attachments
-- Manual clickable Table of Contents
+- Export Zotero items and notes to Word with rich formatting
+- Embed metadata (author(s), date, date added, tags, source URL) as small italic text
+- Parse and render HTML content, including lists, code blocks, blockquotes, and images
+- Insert images from local files or base64-encoded HTML
+- Render HTML snapshots as images using html2image
+- Add clickable hyperlinks
+
+## Requirements
+- Python 3.8+
+- python-docx
+- beautifulsoup4
+- html2image
+- imgkit (optional)
 
 ## Installation
+> Make sure you have Python installed
 
 1. **Clone this repository:**
 

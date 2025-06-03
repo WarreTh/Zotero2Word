@@ -18,6 +18,7 @@ import io
 import urllib.parse
 # We'll use requests for fetching remote images if needed, but make it optional for now.
 import requests
+import hashlib
 
 from pyzotero import zotero
 from bs4 import BeautifulSoup, Tag as Bs4Tag
@@ -33,7 +34,7 @@ import shutil
 import imgkit # For HTML snapshots
 
 from zotero_utils import ZItem, connect_local, get_attachment_path, populate_item_children, build_zotero_item_tree
-from doc_builder import add_styled_heading, add_metadata_as_text, add_html_content_to_doc, add_image_attachment_to_doc, add_html_snapshot_to_doc, set_paragraph_hr
+from doc_builder import add_styled_heading, add_metadata_as_text, add_html_content_to_doc, add_image_attachment_to_doc, add_html_snapshot_to_doc, set_paragraph_hr, add_link_as_small_text
 
 # Attempt to import configuration
 try:
@@ -80,6 +81,26 @@ def add_table_of_contents(doc: Document, toc_structure):
         hyperlink.append(run)
         p._p.append(hyperlink)
     doc.add_page_break()
+
+def get_cached_image_path(url: str, cache_dir: str) -> str:
+    """Return the path for a cached image file based on the URL hash."""
+    if not url or not cache_dir:
+        return None
+    ext = os.path.splitext(url)[1].lower()
+    if not ext or len(ext) > 6:
+        ext = ".img"
+    url_hash = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    filename = f"{url_hash}{ext}"
+    return os.path.join(cache_dir, filename)
+
+def add_link_as_small_text(doc, url):
+    # Add a URL as small italic text to the document
+    if not url:
+        return
+    p = doc.add_paragraph()
+    run = p.add_run(url)
+    run.italic = True
+    run.font.size = Pt(8)
 
 def main():
     check_dependencies()
@@ -194,30 +215,71 @@ def main():
                     attachments.extend(item_obj.meta['attachments'])
                 for att in attachments:
                     att_path = get_attachment_path(att, CONFIG)
-                    # If local file exists, insert as before
-                    if att_path and att_path.exists() and att_path.suffix.lower() in image_exts:
+                    url = att.get("data", {}).get("url", None)
+                    key = att.get("data", {}).get("key", "unknown")
+                    url_added = False
+                    # If local file exists and is an image, insert as before
+                    if att_path and os.path.exists(att_path) and is_image_file(att_path):
                         try:
-                            add_image_attachment_to_doc(doc, att_path, verbose=verbose)
+                            add_image_attachment_to_doc(doc, Path(att_path), verbose=verbose)
                             tqdm.write(f"Inserted image: {att_path}")
                         except Exception as e:
                             tqdm.write(f"Failed to add image {att_path}: {e}")
-                    # If only a URL is present and it looks like an image, download and insert
-                    elif att_path is None and 'url' in att.get('data', {}):
-                        url = att['data']['url']
-                        ext = os.path.splitext(url)[1].lower()
-                        if ext in image_exts or ext == '.webp':
+                        if url:
+                            add_link_as_small_text(doc, url)
+                    # If local file exists and is an HTML snapshot, check/generate screenshot in temp dir
+                    elif att_path and os.path.exists(att_path) and att_path.lower().endswith(".html"):
+                        temp_dir = tempfile.gettempdir()
+                        base_name = os.path.splitext(os.path.basename(att_path))[0]
+                        screenshot_name = f"z2w_{key}_{base_name}.screenshot.png"
+                        screenshot_path = os.path.join(temp_dir, screenshot_name)
+                        if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
                             try:
-                                tqdm.write(f"Downloading image from URL: {url}")
-                                response = requests.get(url, timeout=10)
-                                response.raise_for_status()
-                                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_img_file:
-                                    tmp_img_file.write(response.content)
-                                    tmp_img_file.flush()
-                                    add_image_attachment_to_doc(doc, Path(tmp_img_file.name), verbose=verbose)
-                                tqdm.write(f"Downloaded and inserted image: {url}")
-                                os.unlink(tmp_img_file.name)
+                                add_image_attachment_to_doc(doc, Path(screenshot_path), verbose=verbose)
+                                tqdm.write(f"Inserted existing screenshot: {screenshot_path}")
                             except Exception as e:
-                                tqdm.write(f"Failed to download or add image from {url}: {e}")
+                                tqdm.write(f"Failed to add screenshot {screenshot_path}: {e}")
+                        else:
+                            try:
+                                add_html_snapshot_to_doc(doc, Path(att_path), DEFAULT_MAX_IMG_WIDTH=CONFIG.get("MAX_IMG_WIDTH", 6.0), verbose=verbose)
+                                if os.path.exists(screenshot_path) and os.path.getsize(screenshot_path) > 0:
+                                    add_image_attachment_to_doc(doc, Path(screenshot_path), verbose=verbose)
+                                    tqdm.write(f"Generated and inserted screenshot for: {att_path}")
+                                else:
+                                    tqdm.write(f"Screenshot not found or empty after generation: {screenshot_path}")
+                            except Exception as e:
+                                tqdm.write(f"Failed to generate screenshot for {att_path}: {e}")
+                        if url:
+                            add_link_as_small_text(doc, url)
+                    # If only a URL is present and it looks like an image, check temp dir before downloading
+                    elif att_path is None and url:
+                        ext = os.path.splitext(url)[1].lower()
+                        base_name = os.path.splitext(os.path.basename(url))[0]
+                        temp_dir = tempfile.gettempdir()
+                        img_name = f"z2w_{key}_{base_name}{ext}"
+                        img_path = os.path.join(temp_dir, img_name)
+                        if ext in image_exts or ext == ".webp":
+                            if os.path.exists(img_path):
+                                add_image_attachment_to_doc(doc, Path(img_path), verbose=verbose)
+                                tqdm.write(f"Used existing downloaded image: {img_path}")
+                            else:
+                                try:
+                                    tqdm.write(f"Downloading image from URL: {url}")
+                                    response = requests.get(url, timeout=10)
+                                    response.raise_for_status()
+                                    with open(img_path, "wb") as f:
+                                        f.write(response.content)
+                                    add_image_attachment_to_doc(doc, Path(img_path), verbose=verbose)
+                                    tqdm.write(f"Downloaded and inserted image: {url}")
+                                except Exception as e:
+                                    tqdm.write(f"Failed to download or add image from {url}: {e}")
+                        if url:
+                            add_link_as_small_text(doc, url)
+                    # Always add the link as small italic text if a URL is present
+                    if url and not url_added:
+                        add_link_as_small_text(doc, url)
+                    elif url:
+                        add_link_as_small_text(doc, url)
 
                 item_counter += 1
                 pbar.update(1)
