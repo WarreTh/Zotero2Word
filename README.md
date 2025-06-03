@@ -17,60 +17,77 @@ A tool to export Zotero items and notes to Microsoft Word (.docx) with rich form
 
 ## Requirements
 - Python 3.8+
+- pyzotero
 - python-docx
+- tqdm
 - beautifulsoup4
-- html2image
+- lxml
+- requests
 - imgkit (optional)
+- html2image
+- wkhtmltopdf (system dependency, required for imgkit/html2image)
 
 ## Installation
 > Make sure you have Python installed
 
-1. **Clone this repository:**
+### Windows (Recommended)
 
-   ```fish
+1. **Install Python and wkhtmltopdf automatically using winget:**
+
+   ```powershell
+   winget install --id=Python.Python.3.11 -e && winget install --id=wkhtmltopdf.wkhtmltox -e
+   ```
+   - If you already have Python installed, you can skip the first part of the command.
+   - `winget` will add both Python and wkhtmltopdf to your PATH automatically.
+
+2. **Clone this repository:**
+
+   ```powershell
    git clone https://github.com/WarreTh/Zotero2Word.git
    cd Zotero2Word
    ```
 
-2. **(Recommended) Use pipx to install pipenv for isolated Python environments:**
+3. **Install Python dependencies:**
 
-   ```fish
-   python3 -m pip install --user pipx
-   python3 -m pipx ensurepath
-   pipx install pipenv
-   pipenv install --dev
-   pipenv shell
+   ```powershell
+   pip install pyzotero python-docx tqdm beautifulsoup4 lxml requests imgkit html2image
    ```
 
-3. **Install Python dependencies:**
+   - You do **NOT** need pipx or pipenv on Windows. Just use the above pip command.
+
+### Linux/macOS
+
+1. **Clone this repository:**
+
+   ```bash
+   git clone https://github.com/WarreTh/Zotero2Word.git
+   cd Zotero2Word
+   ```
+
+2. **Install Python dependencies:**
 
    ```bash
    pip install pyzotero python-docx tqdm beautifulsoup4 lxml requests imgkit html2image
    ```
 
-4. **Install system dependencies (choose your OS):**
+3. **Install system dependencies:**
 
-   **On Windows:**
-   - Download and install `wkhtmltopdf` (includes `wkhtmltoimage`) from [wkhtmltopdf.org](https://wkhtmltopdf.org/downloads.html)
-   - Add the installation folder (usually `C:\Program Files\wkhtmltopdf\bin`) to your PATH environment variable.
-
-   **Other OSes (Linux/macOS):**
    - On Ubuntu/Debian:
 
-     ```fish
+     ```bash
      sudo apt install wkhtmltopdf
      ```
 
    - On macOS:
 
-     ```fish
+     ```bash
      brew install wkhtmltopdf
      ```
 
    - Or download from [wkhtmltopdf.org](https://wkhtmltopdf.org/)
 
 5. **Edit `config.py` file:**
-   - Propably not needed
+   - Probably not needed
 
 6. **Enable Zotero Local Server API:**
    - Open Zotero.
@@ -82,17 +99,26 @@ A tool to export Zotero items and notes to Microsoft Word (.docx) with rich form
 
 Run the script:
 
-```fish
+```powershell
 python Zotero2Word.py
 ```
 
 The output Word document will be saved to the path specified in your `config.py`.
 
-## TODO
-
-- Fix attachment-path showing as None
-  - Thats why attachments arent shown in the doc
-
-## License
+# License
 
 This project is licensed under the GNU Affero General Public License v3.0. See the [LICENSE](LICENSE) file for details.
+
+## Common Errors
+
+**Error:** `wkhtmltoimage is not installed or not in PATH`
+- **Solution:** Make sure you installed wkhtmltopdf using winget (Windows), `sudo apt install wkhtmltopdf` (Ubuntu/Debian), or `brew install wkhtmltopdf` (macOS). Restart your terminal or computer if needed.
+
+**Error:** `ModuleNotFoundError: No module named 'pyzotero'`
+- **Solution:** Run `pip install pyzotero` in your terminal.
+
+**Error:** `Could not connect to local Zotero`
+- **Solution:** Ensure Zotero is running and the Local Server API is enabled (see step 6 in Installation).
+
+**Error:** `Image file not found` or `Attachment file does not exist`
+- **Solution:** Check your `STORAGE_DIR` path in `config.py` and make sure your Zotero storage is accessible.
