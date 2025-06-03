@@ -155,6 +155,7 @@ def main():
             p = doc.add_paragraph()
             run = p.add_run(collection_heading_text)
             run.bold = True
+            run.font.size = Pt(15)  # Set divider title font size to 15
             # Insert bookmark XML at the start of the paragraph
             from docx.oxml import OxmlElement
             from docx.oxml.ns import qn
@@ -178,37 +179,37 @@ def main():
             sorted_items_in_collection = items_with_notes + items_without_notes
 
             for item_obj in sorted_items_in_collection:
-                # --- Add a horizontal rule before each item for clear separation ---
+                # Add a horizontal rule before each item for clear separation
                 hr_p_item = doc.add_paragraph()
                 set_paragraph_hr(hr_p_item)
 
-                # --- Add item title as heading ---
+                # Add item title as heading
                 item_title_level = collection_heading_level + 1
                 add_styled_heading(doc, item_obj.title or "(No Title)", level=item_title_level)
-                # --- Add item metadata ---
+                # Add item metadata
                 add_metadata_as_text(doc, item_obj)
-                # --- Add notes if present ---
+                # Add notes if present, removing all excessive whitespace and blank lines
                 item_notes_html_list = item_obj.get_displayable_notes()
                 if item_notes_html_list:
+                    # Add Notes header
                     p_notes_header = doc.add_paragraph()
                     run_notes_header = p_notes_header.add_run("Notes:")
                     run_notes_header.bold = True
                     for note_html_content in item_notes_html_list:
-                        # Remove excessive whitespace from note HTML before adding
-                        cleaned_html = " ".join(note_html_content.split())
-                        add_html_content_to_doc(doc, cleaned_html, verbose=verbose)
-                    doc.add_paragraph()
-
-                # --- Insert HTML snapshots as images ---
+                        # Remove all excessive whitespace and blank lines from notes
+                        cleaned_html = re.sub(r"\s+", " ", note_html_content)
+                        cleaned_html = re.sub(r"(\s*<br\s*/?>\s*)+", "<br>", cleaned_html, flags=re.IGNORECASE)
+                        cleaned_html = cleaned_html.strip()
+                        if cleaned_html:
+                            add_html_content_to_doc(doc, cleaned_html, verbose=verbose)
+                # Insert HTML snapshots as images, keep together with notes
                 if CONFIG.get("ENABLE_WEBPAGES", True) and hasattr(item_obj, 'snapshots') and item_obj.snapshots:
                     p_snapshots_header = doc.add_paragraph()
                     run_snapshots_header = p_snapshots_header.add_run("Snapshots:")
                     run_snapshots_header.bold = True
                     for snapshot_path in item_obj.snapshots:
                         add_html_snapshot_to_doc(doc, snapshot_path, verbose=verbose)
-                    doc.add_paragraph()
-
-                # --- Insert all image attachments (png, jpg, jpeg, gif, bmp, tiff) ---
+                # Insert all image attachments (png, jpg, jpeg, gif, bmp, tiff) and keep them compact
                 image_exts = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff']
                 attachments = []
                 if CONFIG.get("ENABLE_IMAGES", True) and hasattr(item_obj, 'meta') and 'attachments' in item_obj.meta:
@@ -280,7 +281,6 @@ def main():
                         add_link_as_small_text(doc, url)
                     elif url:
                         add_link_as_small_text(doc, url)
-
                 item_counter += 1
                 pbar.update(1)
 

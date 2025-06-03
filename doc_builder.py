@@ -3,6 +3,7 @@ import base64
 import io
 import tempfile
 import sys
+import re  # Import regular expressions for whitespace cleaning
 from pathlib import Path
 from typing import List, Optional, Tuple, Any
 from docx import Document
@@ -88,9 +89,15 @@ def create_hyperlink(paragraph, url: str, text: Optional[str] = None):
     paragraph._p.append(hyperlink)
 
 def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK_FONT_NAME="Courier New", DEFAULT_CODE_BLOCK_FONT_SIZE=10, DEFAULT_CODE_BLOCK_BG_COLOR="F0F0F0", DEFAULT_MAX_IMG_WIDTH=6.0, DEFAULT_DOWNLOAD_NOTE_IMAGES=False, verbose=True):
+    # Major step: Clean HTML content by removing excessive whitespace and blank lines
     if not isinstance(html_content, str):
         warnings.warn(f"HTML content must be a string, got {type(html_content)}. Skipping.")
         return
+    # Remove all excessive whitespace and blank lines
+    html_content = re.sub(r"\s+", " ", html_content)
+    html_content = re.sub(r"(\s*<br\s*/?>\s*)+", "<br>", html_content, flags=re.IGNORECASE)
+    html_content = html_content.strip()
+    # Parse cleaned HTML
     soup = BeautifulSoup(html_content, 'html.parser')
     html_heading_formats = {
         'h1': {'size': Pt(16), 'bold': True},
@@ -101,6 +108,7 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
         'h6': {'size': Pt(10), 'italic': True},
     }
     def _add_paragraph_with_shading(doc_obj, text, font_name, font_size_pt, rgb_fg_color="000000", rgb_bg_color=None):
+        # Add a code block with background shading
         p = doc_obj.add_paragraph()
         if rgb_bg_color:
             try:
@@ -117,6 +125,7 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
         run.font.color.rgb = RGBColor.from_string(rgb_fg_color)
         return p
     def _process_node_recursively(node, current_doc_paragraph=None, current_list_style=None, current_list_level=0):
+        # Recursively process HTML nodes and add to doc, keeping notes/images compact
         if isinstance(node, NavigableString):
             text = str(node)
             if text.strip() or text:
@@ -129,9 +138,12 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
             return
         tag_name = node.name.lower()
         if tag_name in ['p', 'div']:
-            p = doc.add_paragraph()
-            for child in node.children:
-                _process_node_recursively(child, p, current_list_style, current_list_level)
+            # Only add a new paragraph if there is non-empty content
+            content = node.get_text(strip=True)
+            if content:
+                p = doc.add_paragraph()
+                for child in node.children:
+                    _process_node_recursively(child, p, current_list_style, current_list_level)
         elif tag_name in html_heading_formats:
             style = html_heading_formats[tag_name]
             p = doc.add_paragraph()
@@ -170,6 +182,7 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
             for child in node.children:
                 _process_node_recursively(child, p)
         elif tag_name == 'img':
+            # Major step: Insert image inline, no extra paragraph, keep compact
             src_raw = node.get('src', '')
             alt = node.get('alt', 'image')
             src = str(src_raw) if src_raw is not None else ""
@@ -218,6 +231,7 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
                 if current_doc_paragraph:
                     current_doc_paragraph.add_run(f" [Image: {alt}] ")
         elif tag_name == 'br':
+            # Only add a line break if inside a paragraph
             if current_doc_paragraph:
                 current_doc_paragraph.add_run().add_break(WD_BREAK.LINE)
         elif current_doc_paragraph:
@@ -245,6 +259,7 @@ def add_html_content_to_doc(doc: Document, html_content: str, DEFAULT_CODE_BLOCK
             temp_p = doc.add_paragraph()
             for child in node.children:
                 _process_node_recursively(child, temp_p)
+    # Major step: Process all nodes in soup, keeping output compact
     for child_node in soup.contents:
         _process_node_recursively(child_node, None)
 
@@ -287,12 +302,23 @@ def add_html_snapshot_to_doc(doc: Document, html_file_path: Path, DEFAULT_MAX_IM
         if verbose:
             print(f"[Zotero2Word] HTML snapshot file not found: {html_file_path}", file=sys.stderr)
         return
-    # Remove displaying the file:// snapshot URL (do not add it to the doc)
     # Use system temp dir and a readable, unique name
     temp_dir = Path(tempfile.gettempdir())
     base_name = html_file_path.stem
     screenshot_name = f"{base_name}.screenshot.png"
     output_image_path = temp_dir / screenshot_name
+    # Major step: If screenshot already exists and is non-empty, use it directly
+    if output_image_path.exists() and output_image_path.stat().st_size > 0:
+        try:
+            doc.add_picture(str(output_image_path), width=Inches(DEFAULT_MAX_IMG_WIDTH))
+            doc.add_paragraph()
+            if verbose:
+                print(f"[Zotero2Word] Used existing HTML snapshot image: {output_image_path}", file=sys.stderr)
+            return
+        except Exception as e:
+            warnings.warn(f"Failed to add existing screenshot {output_image_path}: {e}")
+            if verbose:
+                print(f"[Zotero2Word] Failed to use existing screenshot: {output_image_path} | Error: {e}", file=sys.stderr)
     # Major step: Use Html2Image to prepare for HTML snapshot (browser_args not supported)
     hti = Html2Image(output_path=str(temp_dir))
     try:
