@@ -55,13 +55,30 @@ def check_dependencies():
                  "'brew install wkhtmltopdf' on macOS, or download from wkhtmltopdf.org).")
 
 def add_table_of_contents(doc: Document, toc_structure):
-    """Generates a manual Table of Contents with clickable links for each collection and subcollection."""
+    """Generates a manual Table of Contents with clickable links for each collection and subcollection.
+    Only the first top-level section is shown in full; subsequent entries show only the previous level and current one, but indentation reflects depth.
+    For each top-level, show full path once, then only previous and current for deeper levels."""
     doc.add_paragraph("Table of Contents", style="Title")
+    shown_top_levels = set()
     for path_tuple, heading_id, bookmark_name, bookmark_num in toc_structure:
         level = len(path_tuple)
         indent = "    " * (level - 1)
-        display_name = " / ".join(path_tuple)
+        # Determine display name based on previous levels and shown top-levels
+        if level == 1:
+            display_name = path_tuple[-1]
+            shown_top_levels.add(path_tuple[0])
+        elif level == 2:
+            # If top-level not shown yet, show full path, else only show previous/current
+            if path_tuple[0] not in shown_top_levels:
+                display_name = " / ".join(path_tuple)
+                shown_top_levels.add(path_tuple[0])
+            else:
+                display_name = " / ".join(path_tuple[-2:])
+        else:
+            # For level >= 3, always show previous and current
+            display_name = " / ".join([path_tuple[-2], path_tuple[-1]])
         p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Pt(12 * (level - 1))
         # Create the hyperlink XML
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
