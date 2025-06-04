@@ -37,6 +37,8 @@ CONFIG = {
         # Hyperlink color (hex)
         "HYPERLINK_COLOR": "0563C1",
         # Small/metadata text size (in points)
-        "SMALL_TEXT_SIZE": 8
+        "SMALL_TEXT_SIZE": 8,
+        # Enable BIN reference style formatting
+        "BIN_REFERENCE_STYLE": True  # If True, use BIN-norm for references; otherwise, use default style
     }
 }

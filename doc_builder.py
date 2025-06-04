@@ -26,7 +26,84 @@ def add_styled_heading(doc: Document, text: str, level: int):
 
 def add_metadata_as_text(doc: Document, item):
     # Add item metadata as small italic text, then add source URL if present
+    # Use correct config path for BIN_REFERENCE_STYLE
+    bin_style = CONFIG.get("STYLING", {}).get("BIN_REFERENCE_STYLE", False)
     if not getattr(item, "DEFAULT_EMBED_METADATA", True):
+        return
+    if bin_style:
+        # BIN-norm formatting
+        lines = []
+        if item.item_type != "note":
+            # Book/report style
+            authors = ""
+            if item.creators:
+                author_list = []
+                for c in item.creators:
+                    if isinstance(c, dict):
+                        first = c.get("firstName", "").strip()
+                        last = c.get("lastName", "").strip()
+                        if first and last:
+                            author_list.append(f"{first[0]}. {last.upper()}")
+                        elif last:
+                            author_list.append(last.upper())
+                if author_list:
+                    if len(author_list) == 1:
+                        authors = author_list[0]
+                    elif len(author_list) == 2:
+                        authors = f"{author_list[0]} en {author_list[1]}"
+                    else:
+                        authors = f"{author_list[0]} et al."
+            title = getattr(item, "title", "")
+            # Parse publisher, place, pages from meta['data'] if available
+            meta_data = getattr(item, "meta", {}).get("data", {})
+            publisher = meta_data.get("publisher", "")
+            place = meta_data.get("place", "")
+            year = getattr(item, "date", "")
+            if year and len(year) > 4:
+                year = year[:4]
+            pages = meta_data.get("numPages", "")
+            # Compose BIN-norm string
+            bin_str = ""
+            if authors:
+                bin_str += f"{authors}, "
+            if title:
+                bin_str += f"{title}, "
+            if place:
+                bin_str += f"{place}, "
+            if publisher:
+                bin_str += f"{publisher}, "
+            if year:
+                bin_str += f"{year}"
+            if pages:
+                bin_str += f", {pages}."
+            else:
+                bin_str = bin_str.rstrip(", ") + "."
+            lines.append(bin_str)
+        # Internet source style
+        meta_data = getattr(item, "meta", {}).get("data", {})
+        source_url = meta_data.get("url", None)
+        if source_url:
+            org = meta_data.get("publisher", "")
+            if not org:
+                org = meta_data.get("websiteTitle", "")
+            access_date = meta_data.get("accessDate", "")
+            if access_date:
+                # Format date as '17 maart 2002' if possible
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(access_date.replace("Z", ""))
+                    months = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"]
+                    date_str = f"{dt.day} {months[dt.month-1]} {dt.year}"
+                except Exception:
+                    date_str = access_date
+                lines.append(f"{org}, {source_url}, geraadpleegd op {date_str}.")
+            else:
+                lines.append(f"{org}, {source_url}.")
+        if lines:
+            p = doc.add_paragraph()
+            run = p.add_run("\n".join(lines))
+            run.italic = True
+            run.font.size = Pt(8)
         return
     fields_to_display: List[str] = []
     if item.item_type != "note":
